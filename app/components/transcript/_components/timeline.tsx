@@ -31,7 +31,7 @@ import {
 } from "~/components/transcript/utils/claimify";
 
 // Feature flag: disable live retrieval (Perplexity) to avoid API usage during testing
-const ENABLE_RETRIEVAL = false;
+const ENABLE_RETRIEVAL = true;
 
 interface TimelineProps {
     transcriptFinal: {
