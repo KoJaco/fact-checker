@@ -1224,7 +1224,7 @@ export const Timeline = ({
                                             {factCardsToRender.map((it) => (
                                                 <motion.div
                                                     key={`fc-${i}-${it.id}`}
-                                                    className="my-4"
+                                                    className="my-4 w-full"
                                                     aria-live="polite"
                                                     initial={{
                                                         opacity: 0,

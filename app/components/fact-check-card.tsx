@@ -60,7 +60,7 @@ export default function FactCheckCard({
     })();
 
     return (
-        <Card className="rounded-xl border ">
+        <Card className="rounded-xl border w-full">
             <CardHeader className="flex items-center justify-between mb-2">
                 <CardTitle className="text-md font-medium flex justify-between w-full items-center gap-2">
                     <div className="flex items-center gap-2">
