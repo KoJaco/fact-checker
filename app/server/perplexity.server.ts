@@ -7,9 +7,15 @@ type Citation = {
 
 export async function factCheckClaim({
     claimText,
+    contextText,
+    subjectText,
+    seeds,
     nowISO,
 }: {
     claimText: string;
+    contextText?: string | null;
+    subjectText?: string | null;
+    seeds?: string[] | undefined;
     nowISO: string;
 }) {
     const apiKey = process.env.PERPLEXITY_API_KEY;
@@ -25,7 +31,19 @@ export async function factCheckClaim({
 
     const url = "https://api.perplexity.ai/chat/completions";
     const system = `You are a meticulous, time-aware fact-checker. Search the live web. Use only what you find now. Return STRICT JSON only.`;
-    const user = `CLAIM:\n"${claimText}"\n\nCONTEXT & RULES:\n- Treat words like "now", "today", "currently" as referring to: ${nowISO}.\n- Prefer official sources (.gov, .edu, official orgs) and the most recent data.\n- If sources conflict or are insufficient, set verdict to "uncertain".\n- Each citation must include an exact quote copied from the page text.\n- Keep "rationale" under 50 words.\n\nRETURN JSON EXACTLY:\n{\n  "verdict": "supported | disputed | uncertain",\n  "confidence": 0.0,\n  "rationale": "string",\n  "citations": [\n    { "url": "string", "title": "string", "published_at": "YYYY-MM-DD|null", "quote": "string" }\n  ]\n}`;
+    const contextSection =
+        contextText && contextText.trim().length > 0
+            ? `\nOPTIONAL CONTEXT (from transcript adjacents; do not overfit):\n"${contextText.trim()}"\n`
+            : "\n";
+    const subjectSection =
+        subjectText && subjectText.trim().length > 0
+            ? `\nSUBJECT HINT (normalized): ${subjectText.trim()}\n`
+            : "\n";
+    const seedsSection =
+        seeds && seeds.length
+            ? `\nSEARCH HINTS: ${seeds.slice(0, 6).join(" | ")}\n`
+            : "\n";
+    const user = `CLAIM:\n"${claimText}"\n${subjectSection}${contextSection}${seedsSection}\nCONTEXT & RULES:\n- Treat words like "now", "today", "currently" as referring to: ${nowISO}.\n- Prefer official sources (.gov, .edu, official orgs) and the most recent data.\n- If sources conflict or are insufficient, set verdict to "uncertain".\n- Each citation must include an exact quote copied from the page text.\n- Keep "rationale" under 50 words.\n\nRETURN JSON EXACTLY:\n{\n  "verdict": "supported | disputed | uncertain",\n  "confidence": 0.0,\n  "rationale": "string",\n  "citations": [\n    { "url": "string", "title": "string", "published_at": "YYYY-MM-DD|null", "quote": "string" }\n  ]\n}`;
 
     try {
         const res = await fetch(url, {

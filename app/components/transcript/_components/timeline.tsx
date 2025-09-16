@@ -743,6 +743,11 @@ export const Timeline = ({
                 id: it.id,
                 quote: it.quote,
                 context: ctx,
+                subject:
+                    it.claimEngineData?.subjectCanonical ||
+                    it.claimEngineData?.subjectSurface ||
+                    it.subjectNoun ||
+                    null,
                 seeds: Array.from(seeds).slice(0, 6),
             };
         });

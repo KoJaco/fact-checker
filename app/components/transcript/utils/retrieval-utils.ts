@@ -7,6 +7,7 @@ export type RetrievalReq = {
     id: string; // claim id
     quote: string;
     context?: string | null;
+    subject?: string | null;
     seeds: string[];
 };
 
@@ -35,6 +36,7 @@ export type AskFn = (input: {
 function buildPrompt(q: RetrievalReq) {
     const lines = [
         `Claim: ${q.quote}`,
+        q.subject ? `Subject: ${q.subject}` : null,
         q.context ? `Context: ${q.context}` : null,
         q.seeds.length ? `Search hints: ${q.seeds.join(" | ")}` : null,
         `Task: Verify the claim with high precision using authoritative sources. Return a short verdict (supported/disputed/uncertain), brief rationale (<=50 words), and 2–5 citations (prefer official/org/gov/edu).`,
@@ -95,12 +97,20 @@ export async function dispatchFactChecks(
 }
 
 // Live ask function that hits the Remix action backed by Perplexity
-export const askPerplexity: AskFn = async ({ prompt }) => {
+export const askPerplexity: AskFn = async ({ prompt, searchHints }) => {
     // Extract the raw claim line from our prompt builder
     // Expect a line beginning with "Claim: "; fallback to whole prompt
     let claim = prompt;
+    let context: string | null = null;
+    let subject: string | null = null;
     const lines = prompt.split("\n");
     const claimLine = lines.find((l) => l.toLowerCase().startsWith("claim:"));
+    const contextLine = lines.find((l) =>
+        l.toLowerCase().startsWith("context:")
+    );
+    const subjectLine = lines.find((l) =>
+        l.toLowerCase().startsWith("subject:")
+    );
     if (claimLine) {
         let raw = claimLine.slice("Claim:".length).trim();
         // Strip wrapping quotes if present
@@ -112,11 +122,31 @@ export const askPerplexity: AskFn = async ({ prompt }) => {
         }
         claim = raw.length > 0 ? raw : claim;
     }
+    if (contextLine) {
+        const raw = contextLine.slice("Context:".length).trim();
+        context = raw.length > 0 ? raw : null;
+    }
+    if (subjectLine) {
+        let raw = subjectLine.slice("Subject:".length).trim();
+        if (
+            (raw.startsWith('"') && raw.endsWith('"')) ||
+            (raw.startsWith("'") && raw.endsWith("'"))
+        ) {
+            raw = raw.slice(1, -1);
+        }
+        subject = raw.length > 0 ? raw : null;
+    }
 
     const res = await fetch("/action/factcheck", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ claim, now: new Date().toISOString() }),
+        body: JSON.stringify({
+            claim,
+            context,
+            subject,
+            seeds: Array.isArray(searchHints) ? searchHints : undefined,
+            now: new Date().toISOString(),
+        }),
     });
     if (!res.ok) {
         throw new Error(`factcheck request failed (${res.status})`);
