@@ -143,7 +143,13 @@ export const structuredOutputConfigManual: StructuredOutputConfig = {
                 type: "array",
                 items: {
                     type: "object",
-                    required: ["id", "kind", "quote", "searchSeeds"],
+                    required: [
+                        "id",
+                        "kind",
+                        "quote",
+                        "searchSeeds",
+                        "subjectSpan",
+                    ],
                     properties: {
                         id: {
                             type: "string",

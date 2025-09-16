@@ -1,5 +1,6 @@
-import React from "react";
+import { Eye, EyeClosed } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { useState } from "react";
 
 type Verdict = "supported" | "disputed" | "uncertain";
 type State = "analyzing" | "searching" | "retrying" | "judging" | "final";
@@ -36,6 +37,7 @@ export default function FactCheckCard({
     nowISO?: string;
     claimEngineData?: any; // NormalizedClaim
 }) {
+    const [isCollapsed, setIsCollapsed] = useState(false);
     const statusLabel =
         state === "analyzing"
             ? "Analyzing claim…"
@@ -61,85 +63,131 @@ export default function FactCheckCard({
         <Card className="rounded-xl border ">
             <CardHeader className="flex items-center justify-between mb-2">
                 <CardTitle className="text-md font-medium flex justify-between w-full items-center gap-2">
-                    <span className="font-semibold">Fact check</span>
-                    <span
-                        className={`text-xs px-2 py-0.5 rounded-full ${verdictBadgeClass}`}
+                    <div className="flex items-center gap-2">
+                        <span className="font-semibold">Fact check</span>
+                        <span
+                            className={`text-xs px-2 py-0.5 rounded-full ${verdictBadgeClass}`}
+                        >
+                            {statusLabel}
+                        </span>
+                    </div>
+                    <button
+                        type="button"
+                        aria-label={
+                            isCollapsed ? "Show details" : "Hide details"
+                        }
+                        className="text-xs flex items-center gap-2 px-2 py-0.5 rounded border hover:bg-muted"
+                        onClick={() => setIsCollapsed((v) => !v)}
                     >
-                        {statusLabel}
-                    </span>
+                        <span>{isCollapsed ? "Show" : "Hide"}</span>
+                        {isCollapsed ? (
+                            <Eye className="size-4" />
+                        ) : (
+                            <EyeClosed className="size-4" />
+                        )}
+                    </button>
                 </CardTitle>
             </CardHeader>
             <CardContent>
-                <div className="flex items-center gap-2 mb-4 border-b">
-                    {claim && (
-                        <p className="text-sm mb-2">
-                            <span className="opacity-70 mr-1">Claim:</span>
-                            <span>“{claim}”</span>
-                        </p>
-                    )}
-                </div>
-                <div className="mb-6">
-                    {subject && (
-                        <p className="text-xs mb-2 opacity-80">
-                            <span className="mr-1">Subject:</span>
-                            <span className="font-medium">{subject}</span>
-                        </p>
-                    )}
-                    {context && (
-                        <p className="text-xs mb-2 opacity-80">
-                            <span className="mr-1">Context:</span>
-                            <span className="font-medium">{context}</span>
-                        </p>
-                    )}
-                    {claimEngineData && (
-                        <div className="mb-3 space-y-1">
-                            <p className="text-xs opacity-60">
-                                <span className="mr-1">🔧 Engine:</span>
-                                <span className="font-mono text-[10px]">
-                                    {claimEngineData.status} |
-                                    {claimEngineData.relationLemma
-                                        ? ` ${claimEngineData.relationLemma}`
-                                        : ""}{" "}
-                                    | score:{" "}
-                                    {(claimEngineData.confidence * 100).toFixed(
-                                        0
-                                    )}
-                                    %
-                                </span>
-                            </p>
-                            {claimEngineData.claimKey && (
-                                <p className="text-xs opacity-50">
-                                    <span className="mr-1">Key:</span>
-                                    <span className="font-mono text-[9px]">
-                                        {claimEngineData.claimKey}
+                {isCollapsed ? (
+                    <div className="space-y-2">
+                        <div className="flex items-center gap-2 mb-1">
+                            {claim && (
+                                <p className="text-sm">
+                                    <span className="opacity-70 mr-1">
+                                        Claim:
                                     </span>
+                                    <span>“{claim}”</span>
                                 </p>
                             )}
                         </div>
-                    )}
-                    {Array.isArray(seeds) && seeds.length > 0 && (
-                        <div className="mb-3 flex flex-wrap gap-1">
-                            {seeds.slice(0, 3).map((s, i) => (
-                                <span
-                                    key={i}
-                                    className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-foreground/80 border"
-                                >
-                                    {s}
-                                </span>
-                            ))}
-                        </div>
-                    )}
-                </div>
-                {state !== "final" ? (
-                    <NonFinalSkeleton state={state} />
+                        {subject && (
+                            <p className="text-xs opacity-80">
+                                <span className="mr-1">Subject:</span>
+                                <span className="font-medium">{subject}</span>
+                            </p>
+                        )}
+                    </div>
                 ) : (
-                    <FinalContent
-                        verdict={verdict}
-                        confidence={confidence}
-                        rationale={rationale}
-                        citations={citations}
-                        nowISO={nowISO}
-                    />
+                    <>
+                        <div className="flex items-center gap-2 mb-4 border-b">
+                            {claim && (
+                                <p className="text-sm mb-2">
+                                    <span className="opacity-70 mr-1">
+                                        Claim:
+                                    </span>
+                                    <span>“{claim}”</span>
+                                </p>
+                            )}
+                        </div>
+                        <div className="mb-6">
+                            {subject && (
+                                <p className="text-xs mb-2 opacity-80">
+                                    <span className="mr-1">Subject:</span>
+                                    <span className="font-medium">
+                                        {subject}
+                                    </span>
+                                </p>
+                            )}
+                            {context && (
+                                <p className="text-xs mb-2 opacity-80">
+                                    <span className="mr-1">Context:</span>
+                                    <span className="font-medium">
+                                        {context}
+                                    </span>
+                                </p>
+                            )}
+                            {claimEngineData && (
+                                <div className="mb-3 space-y-1">
+                                    <p className="text-xs opacity-60">
+                                        <span className="mr-1">🔧 Engine:</span>
+                                        <span className="font-mono text-[10px]">
+                                            {claimEngineData.status} |
+                                            {claimEngineData.relationLemma
+                                                ? ` ${claimEngineData.relationLemma}`
+                                                : ""}{" "}
+                                            | score:{" "}
+                                            {(
+                                                claimEngineData.confidence * 100
+                                            ).toFixed(0)}
+                                            %
+                                        </span>
+                                    </p>
+                                    {claimEngineData.claimKey && (
+                                        <p className="text-xs opacity-50">
+                                            <span className="mr-1">Key:</span>
+                                            <span className="font-mono text-[9px]">
+                                                {claimEngineData.claimKey}
+                                            </span>
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+                            {Array.isArray(seeds) && seeds.length > 0 && (
+                                <div className="mb-3 flex flex-wrap gap-1">
+                                    {seeds.slice(0, 3).map((s, i) => (
+                                        <span
+                                            key={i}
+                                            className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-foreground/80 border"
+                                        >
+                                            {s}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        {state !== "final" ? (
+                            <NonFinalSkeleton state={state} />
+                        ) : (
+                            <FinalContent
+                                verdict={verdict}
+                                confidence={confidence}
+                                rationale={rationale}
+                                citations={citations}
+                                nowISO={nowISO}
+                            />
+                        )}
+                    </>
                 )}
             </CardContent>
         </Card>

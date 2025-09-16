@@ -47,12 +47,28 @@ export async function dispatchFactChecks(
     ask: AskFn,
     onUpdate: (u: RetrievalUpdate) => void
 ) {
+    // console.log(`[FactCheck] Dispatching ${items.length} fact-check requests`);
+
     // Simple sequential dispatch; you can parallelize with a small concurrency limit
     for (const it of items) {
         try {
+            // console.log(`[FactCheck] Starting fact-check for item ${it.id}`);
             onUpdate({ id: it.id, state: "searching" });
+
             const prompt = buildPrompt(it);
+            // console.log(
+            //     `[FactCheck] Built prompt for ${it.id}:`,
+            //     prompt.substring(0, 100) + "..."
+            // );
+
             const res = await ask({ prompt, searchHints: it.seeds });
+            // console.log(`[FactCheck] Got response for ${it.id}:`, {
+            //     verdict: res.verdict,
+            //     confidence: res.confidence,
+            //     hasRationale: !!res.rationale,
+            //     citationCount: res.citations?.length || 0,
+            // });
+
             onUpdate({
                 id: it.id,
                 state: "final",
@@ -61,7 +77,10 @@ export async function dispatchFactChecks(
                 rationale: res.rationale,
                 citations: res.citations,
             });
+
+            // console.log(`[FactCheck] Updated state to final for ${it.id}`);
         } catch (e: any) {
+            console.error(`[FactCheck] Error processing ${it.id}:`, e);
             onUpdate({
                 id: it.id,
                 state: "error",
@@ -69,6 +88,10 @@ export async function dispatchFactChecks(
             });
         }
     }
+
+    // console.log(
+    //     `[FactCheck] Completed all ${items.length} fact-check requests`
+    // );
 }
 
 // Live ask function that hits the Remix action backed by Perplexity

@@ -20,76 +20,51 @@ export type CandidatePayload = {
 
 // ---- Slim Structured Output Config (for schma.ai / LLM) ----
 export const parsingGuide = `
-YOU SEE: a diarised transcript TEXT ONLY (no timestamps).
-YOU ALSO SEE: your previous JSON items (reuse ids; bump version when changing the same claim).
+YOU ARE: A span extractor for explainer videos. No paraphrase, return JSON only.
+
+CONTEXT (loose, explainer cadence)
+- Cadence: every ~10s. Emit up to TWO claims (0–2) per tick.
+- Input: a moderate rolling window suited for narration.
 
 TASK
-1) Propose checkable CLAIM CANDIDATES as exact contiguous spans. Prefer precision, but do not return zero.
-2) Also return speakerLabels: an array of { speakerNumber, speakerDerivedLabel }:
-   - speakerNumber: the diarised tag as seen in the transcript (e.g., "Speaker 0", "Speaker 1").
-   - speakerDerivedLabel: prefer a PERSON NAME if inferable from the transcript; else a ROLE/TITLE used in the transcript
-     (e.g., "Host", "Interviewer", "Guest", "Professor Smith"); if unknown, return "" (empty string). Do not invent.
+1) Propose 0–2 checkable CLAIM CANDIDATES as exact contiguous spans.
+2) Also return speakerLabels: [ { speakerNumber, speakerDerivedLabel } ].
 
-QUOTE & SPAN RULES
-- quote: EXACT contiguous substring; may span 1–3 sentences if needed to keep subject + predicate (+ number/date/entity).
-- If present, also return exact supporting spans (no paraphrase):
-  • subjectSpan?      — the explicit NP naming the subject (not a pronoun).
-  • objectSpan?       — the NP/complement targeted by the predicate.
-  • timeSpan?         — the explicit time phrase (e.g., "in 2022", "last quarter").
-  • locationSpan?     — the place/scope phrase (e.g., "in Australia").
-  • attributionSpan?  — reported-speech cue (e.g., "according to X", "X said").
-- context (optional): ONE adjacent sentence (prefer BEFORE) that helps understand the quote; MUST NOT duplicate the quote. No paraphrase.
-- contextFragments (optional): up to 3 additional EXACT substrings elsewhere in the transcript that clarify subject/metric/time. No overlaps with quote or each other. Keep each fragment short (≤ ~120 tokens).
-- searchSeeds: 1–3 tiny phrases useful for search (e.g., subject name, relation verb, object/metric).
+QUOTE & CONTEXT RULES
+- quote: EXACT substring; 1–3 sentences to keep subject + predicate (+ number/date/entity). No paraphrase.
+- supporting spans (optional): subjectSpan, objectSpan, timeSpan, locationSpan, attributionSpan (exact substrings).
+- context (optional): ONE adjacent sentence (prefer BEFORE); MUST NOT duplicate quote.
+- contextFragments (optional): up to 2–3 EXACT substrings elsewhere that clarify subject/metric/time (≤ ~80 tokens each; hard cap 120).
+- searchSeeds: 1–3 tiny phrases (entity + metric/time).
 
-CONTEXT POLICY (MANDATORY WHEN TRIGGERED)
-You MUST include a one-sentence "context" OR 1–2 "contextFragments" (exact substrings, no overlap with the quote) whenever ANY of these triggers are present:
+MANDATORY CONTEXT POLICY (TRIGGERS)
+Include a one-sentence context OR 1–2 fragments when:
+T1 Reported speech, T2 Pronoun subject with named resolver nearby, T3 Deictic reference, T4 Ellipsis from prior sentence.
 
-T1 (Attribution/Reported speech): the quote or its adjacent sentence contains a reporting verb or cue (e.g., "said", "stated", "claimed", "according to", "reported by", "wrote", "announced", "estimates", "per", "via").
-T2 (Pronoun/Anaphora): the quote's subject is a pronoun (it/they/he/she/this/that/we/I) and the named subject appears in an adjacent or nearby sentence.
-T3 (Deictic/Referential): the quote uses "this/that/these/those/there/here" to refer to a previously-named entity, metric, or time.
-T4 (Ellipsis/Continuation): the quote obviously completes a claim begun in the immediately preceding sentence.
-
-When a trigger fires:
-- Prefer "context" = the ONE immediately adjacent sentence that resolves who/what/when.
-- If the resolver is NOT adjacent, add 1–2 short "contextFragments" (exact substrings) that introduce the named subject, metric, or date.
-- Keep each fragment concise (≤ ~50 tokens; hard cap 80).
-
-MANDATORY SUBJECT RESOLUTION RULE
-- If the grammatical subject inside the quote is a pronoun/deictic (T2/T3), you MUST provide either:
-  (a) subjectSpan naming the subject, OR
-  (b) at least one contextFragment that explicitly names the subject.
-- When T1 (reported speech) fires, include attributionSpan if present.
+SUBJECT RULE
+If the quote’s subject is a pronoun/deictic, provide subjectSpan OR add a fragment that names the subject. Add attributionSpan when T1 fires.
 
 SELF-REPORT
-Set "contextRequired: true|false" and when true, set "contextReason" to one of {"T1","T2","T3","T4"} (or a short combo like "T1+T2").
+Set contextRequired true|false and contextReason in {"T1","T2","T3","T4"} (or combo like "T1+T2").
 
-CANDIDATE QUALITY (light)
-- Must contain: an explicit subject noun phrase (or a pronoun if the subject is named in an included context sentence/fragment) AND
-- At least ONE signal: number, date/year, named entity, or definitional/event verb ("is/was/are/hosted/invented/dates back").
-- Avoid pure fillers ("well, so, you know"), imperatives/meta ("make sure…"), and stand-alone questions unless they assert a checkable proposition.
+CANDIDATE QUALITY
+- Explicit subject (or resolved via context/fragments) AND at least ONE signal: number, year/date, named entity, or definitional/event verb.
+- Avoid fillers/meta and questions unless asserting a proposition.
 
 REVISION
-- If you improve a previously emitted claim (expand, correct, narrow), REUSE the same id and INCREMENT version.
-- If a prior item is not check-worthy, mark withdrawn (reuse id, bump version).
+Reuse id + increment version on improvements; mark withdrawn if not check-worthy.
 
 OUTPUT JSON ONLY:
 {
   "rev": <int>,
   "speakerLabels": [ { "speakerNumber": "Speaker 0", "speakerDerivedLabel": "Host" }, ... ],
-  "items": [
-    {
-      id, kind, quote, speakerTag?,
-      // supporting spans
-      subjectSpan?, objectSpan?, timeSpan?, locationSpan?, attributionSpan?,
-      // context helpers
-      context?, contextFragments?, contextRequired?, contextReason?,
-      // (legacy) subjectNoun? — optional hint if obvious; may be dropped in future
-      searchSeeds?, version?, revisionAction?, revisionNote?
-    }
-  ]
+  "items": [ {
+    id, kind, quote, speakerTag?,
+    subjectSpan?, objectSpan?, timeSpan?, locationSpan?, attributionSpan?,
+    context?, contextFragments?, contextRequired?, contextReason?,
+    subjectNoun?, searchSeeds?, version?, revisionAction?, revisionNote?
+  } ]
 }
-- speakerTag on each item, when present, MUST match one of the speakerNumber values (e.g., "Speaker 1").
 `;
 
 export const structuredOutputConfigLoose: StructuredOutputConfig = {
@@ -97,7 +72,7 @@ export const structuredOutputConfigLoose: StructuredOutputConfig = {
         parsingStrategy: "update-ms",
         transcriptInclusionPolicy: {
             transcriptMode: "window",
-            windowTokenSize: 100,
+            windowTokenSize: 140, // a bit more room for narrative context
             tailSentences: 10,
         },
         prevOutputInclusionPolicy: {

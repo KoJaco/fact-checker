@@ -630,9 +630,9 @@ class WebSocketManager {
                 this.config.getConfig().reconnectDelay *
                 Math.pow(2, this.reconnectAttempts - 1);
 
-            console.log(
-                `Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`
-            );
+            // console.log(
+            //     `Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`
+            // );
 
             setTimeout(() => {
                 this.reconnect();
@@ -951,10 +951,10 @@ export class SchmaSDK {
             // Debug: ensure parsing_config with transcript/prev policies are present
             const so = (payload as any)?.structured_output_config;
             if (so?.parsing_config) {
-                console.log(
-                    "🔌 [SDK] sending structured_output_config.parsing_config:",
-                    so.parsing_config
-                );
+                // console.log(
+                //     "🔌 [SDK] sending structured_output_config.parsing_config:",
+                //     so.parsing_config
+                // );
             } else {
                 console.warn(
                     "🔌 [SDK] structured_output_config.parsing_config missing in initial payload"
@@ -1416,20 +1416,20 @@ export class SchmaSDK {
         } else {
             appendFile(args.files);
         }
-        console.log("fields in uploadBatch", args.fields);
+        // console.log("fields in uploadBatch", args.fields);
 
         if (args.fields) {
             Object.entries(args.fields).forEach(([k, v]) => {
                 const val = JSON.stringify(v);
                 form.append(k, val);
-                console.log(`Appending to form: ${k} = ${val}`);
+                // console.log(`Appending to form: ${k} = ${val}`);
             });
         }
-        console.log("form after appending", form);
+        // console.log("form after appending", form);
         // Debug: show FormData entries
-        for (const [key, value] of form.entries()) {
-            console.log(`FormData entry: ${key} = ${value}`);
-        }
+        // for (const [key, value] of form.entries()) {
+        //     console.log(`FormData entry: ${key} = ${value}`);
+        // }
 
         const headers = await this.buildBatchHeaders();
         const res = await fetch(url, {
@@ -1608,7 +1608,7 @@ export class SchmaSDK {
     }
 
     public parseContentManually() {
-        console.log("🔌 [SDK] Parsing content manually");
+        // console.log("🔌 [SDK] Parsing content manually");
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
             return;
         }
@@ -1672,10 +1672,10 @@ export class SchmaSDK {
             preserveExisting: preserveContext,
         });
 
-        console.log(
-            "🔌 [SDK] Sending dynamic structured config update:",
-            payload
-        );
+        // console.log(
+        //     "🔌 [SDK] Sending dynamic structured config update:",
+        //     payload
+        // );
 
         this.ws.send(JSON.stringify(payload));
     }

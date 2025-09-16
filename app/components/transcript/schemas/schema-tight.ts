@@ -19,26 +19,43 @@ export type CandidatePayload = {
 };
 
 const parsingGuide = `
+YOU ARE: A span extractor. No paraphrase, no explanations. Return JSON only.
+
+CONTEXT (tight, low-latency mode)
+- Cadence: every ~3s. Emit AT MOST ONE claim per tick (0 or 1).
+- Input: a small rolling window around the current speech.
+
 TASK
-From the provided text, SELECT AT MOST TWO checkable CLAIM CANDIDATES as an EXACT contiguous span.
-If no clear candidate exists, return an empty items array.
+1) Propose a checkable CLAIM CANDIDATE as an exact contiguous span, OR return none.
+2) Prefer precision and high verifiability; avoid ambiguous or opinionated text.
+
+QUOTE & CONTEXT RULES
+- quote: EXACT contiguous substring; keep subject + predicate (+ number/date/entity) together. 1–2 sentences preferred (max 3). No paraphrase, no ellipses.
+- context (optional): ONE adjacent sentence (prefer BEFORE) that resolves who/what/when; MUST NOT duplicate the quote.
+- searchSeeds: 1–3 tiny phrases that combine subject + metric/time or entity (e.g., "ABS CPI Jun 2025").
+
+MANDATORY CONTEXT POLICY (TRIGGERS)
+Include a one-sentence context whenever ANY trigger is true:
+T1 Reported speech ("said", "according to", "announced", "per", "via").
+T2 Pronoun subject (it/they/he/she/this/that/we/I) where the named subject is adjacent.
+T3 Deictic reference (this/that/these/those/here/there) to a nearby named entity/metric.
+T4 Ellipsis/Continuation where the claim completes the prior sentence.
+
+SUBJECT RULE (STRICT)
+- If the quote's grammatical subject is a pronoun/deictic (T2/T3), ensure subject is named via the quote or the one-sentence context.
 
 SELECTION PRIORITY
-1) Includes an explicit subject noun phrase (or include the immediately-adjacent subject sentence in the span).
-2) Has at least one signal: number, date/year, named entity, or a definitional/event verb (“is/was/are/hosted/invented/dates back”).
-3) Highest verifiability: concrete, sourceable, minimal ambiguity.
+1) Explicit subject NP (or resolved by the adjacent context).
+2) Contains at least ONE signal: number, date/year, named entity, or definitional/event verb ("is/was/are/hosted/invented/dates back").
+3) Highest verifiability and specificity.
 
-QUOTE RULES
-- quote: EXACT substring; 1-3 sentences total to keep subject + predicate together. No paraphrase, no ellipses.
-- context (optional): ONE adjacent sentence (prefer BEFORE) that aids retrieval; MUST NOT duplicate any part of quote.
-- searchSeeds: 1-3 tiny phrases (entity + metric/time), e.g., ["ABS CPI June 2025"].
+REVISION
+- If you improve a previously emitted claim (expand/correct/narrow), reuse the same id and increment version.
+- If a prior item is not check-worthy, mark withdrawn (reuse id; bump version; brief revisionNote).
 
-REVISION RULES
-- If you improve a previously emitted claim (expand, correct, narrow), REUSE the same id and INCREMENT version.
-- If a prior item is not check-worthy, mark withdrawn (reuse id, bump version, short revisionNote).
-
-OUTPUT JSON ONLY:
+OUTPUT JSON ONLY (single-item mode):
 { "rev": <int>, "items": [ { id, kind, quote, context?, subjectNoun?, searchSeeds?, version?, revisionAction?, revisionNote?, occurrence? } ] }
+Items length MUST be 0 or 1.
 `;
 
 export const structuredOutputConfigTight: StructuredOutputConfig = {
@@ -47,15 +64,15 @@ export const structuredOutputConfigTight: StructuredOutputConfig = {
         // Windowed delta input to keep latency predictable
         transcriptInclusionPolicy: {
             transcriptMode: "window",
-            windowTokenSize: 60, // ~100–150 tokens window works well for “pick 1”
-            tailSentences: 1, // 1 (or 2 if pronouns are common)
+            windowTokenSize: 60, // small local context to keep latency low
+            tailSentences: 1, // prefer 1; bump to 2 if pronouns are common
         },
         // Tiny previous projection so the model can revise without bloat
         prevOutputInclusionPolicy: {
             prevOutputMode: "ignore",
         },
     },
-    updateMs: 4000, // 10s cadence (you can tune down to 6–8s if you want more throughput)
+    updateMs: 3000, // ~3s cadence; emit at most one claim
     parsingGuide,
     schema: {
         name: "claims_candidates_single",

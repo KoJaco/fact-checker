@@ -103,7 +103,7 @@ export const TranscriptLoose = ({ apiUrl }: Props) => {
         return Object.keys(obj).length;
     }, [structuredOutput]);
 
-    console.log("structuredOutput", structuredOutput);
+    // console.log("structuredOutput", structuredOutput);
 
     return (
         <>

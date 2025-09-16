@@ -22,30 +22,36 @@ type CandidateItemFlexible = {
 
 /* ---------- Parsing Guide (two items max, draft→final, fragments) ---------- */
 export const parsingGuide = `
-TASK
-From the provided text, SELECT AT MOST TWO checkable CLAIM CANDIDATES as EXACT contiguous spans.
-If no clear candidate exists, return an empty items array.
+YOU ARE: A span extractor for multi-party discussions. No paraphrase, return JSON only.
 
-SELECTION PRIORITY
-1) Includes an explicit subject noun phrase (or include the immediately-adjacent subject sentence in the span).
-2) Has at least one signal: number, date/year, named entity, or a definitional/event verb (“is/was/are/hosted/invented/dates back”).
-3) Highest verifiability: concrete, sourceable, minimal ambiguity.
+CONTEXT (flexible, after-silence)
+- Triggered after voice activity detection (silence or turn end).
+- Goal: capture nuanced claims that may be distributed across sentences or speakers.
+- Emit up to TWO claims (0–2) per burst.
+
+TASK
+1) Propose 0–2 checkable CLAIM CANDIDATES as EXACT contiguous spans.
+2) Support distributed claims by draft→final metadata.
 
 QUOTE + CONTEXT RULES
-- quote: EXACT substring; 1-3 sentences to keep subject + predicate together. No paraphrase, no ellipses.
-- context (optional): ONE adjacent sentence (prefer BEFORE) that aids retrieval; MUST NOT duplicate quote.
-- contextFragments (optional): up to 3 additional EXACT substrings elsewhere in the transcript that clarify subject/metric/time. No overlaps with quote or each other. Keep each fragment short (≤ ~120 tokens).
+- quote: EXACT substring; 1–3 sentences to keep subject + predicate together. No paraphrase.
+- context (optional): ONE adjacent sentence (prefer BEFORE) that resolves who/what/when; MUST NOT duplicate quote.
+- contextFragments (optional): up to 3 EXACT substrings elsewhere that clarify subject/metric/time (≤ ~120 tokens each).
 
 DRAFT → FINAL RULES
-- If a claim is partially expressed (subject now, number/time later, etc.), emit/upgrade a DRAFT item:
+- If only part of the claim is expressed (subject now, metric later, etc.), emit/upgrade a DRAFT item:
   • status: "draft"
   • completeness: 0..1
   • missingParts: any of ["subject","predicate","metric","time"]
-- When subject + predicate and ≥1 signal are present, set status: "final" and raise completeness accordingly.
+- When subject + predicate and ≥1 signal are present, set status: "final" and raise completeness.
+
+SELECTION PRIORITY
+1) Explicit subject (or reliably resolved by context/fragments).
+2) Presence of at least one signal: number, year/date, named entity, or definitional/event verb ("is/was/are/hosted/invented/dates back").
+3) High verifiability and specificity.
 
 REVISION RULES
-- If you improve a previously emitted claim (expand, correct, narrow), REUSE the same id and INCREMENT version.
-- If a prior item is not check-worthy, mark withdrawn (reuse id, bump version, short revisionNote).
+- Reuse id + increment version on improvements; withdraw if not check-worthy.
 
 OUTPUT JSON ONLY:
 { "rev": <int>, "items": [ { id, kind, status?, completeness?, missingParts?, quote, context?, contextFragments?, subjectNoun?, searchSeeds?, version?, revisionAction?, revisionNote?, occurrence? } ] }
@@ -185,7 +191,7 @@ export const structuredOutputConfigBurstAfterSilence: StructuredOutputConfig = {
         parsingStrategy: "after-silence",
         transcriptInclusionPolicy: {
             transcriptMode: "window",
-            windowTokenSize: 300, // sweep a bigger chunk
+            windowTokenSize: 260, // sweep a larger chunk but not too large
             tailSentences: 2,
         },
         prevOutputInclusionPolicy: {

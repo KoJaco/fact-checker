@@ -6,6 +6,7 @@ import type {
 } from "~/lib/sdk";
 
 import { useState, useEffect, useRef, useMemo } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import FactCheckCard from "~/components/fact-check-card";
 import { ScrollArea, ScrollBar } from "~/components/ui/scroll-area";
 import {
@@ -123,11 +124,21 @@ export const Timeline = ({
                 query: string,
                 meta: Record<string, any>
             ) => {
-                if (!ENABLE_RETRIEVAL) return;
+                if (!ENABLE_RETRIEVAL) {
+                    console.warn(
+                        `[Timeline] ENABLE_RETRIEVAL is false, skipping fact-check for ${claimId}`
+                    );
+                    return;
+                }
 
                 // Convert to our existing fact-check flow
                 const claim = meta.claim as NormalizedClaim;
-                if (!claim) return;
+                if (!claim) {
+                    console.log(
+                        `[Timeline] No claim found in meta for ${claimId}`
+                    );
+                    return;
+                }
 
                 // Map to our existing InsightItem format for compatibility
                 const insightItem: InsightItem = {
@@ -152,14 +163,6 @@ export const Timeline = ({
         () => new ClaimEngine(DEFAULT_CONFIG, DEFAULT_CLOCK, dispatcher)
     );
 
-    // Periodic tick for ClaimEngine processing (logging disabled to prevent spam)
-    useEffect(() => {
-        const interval = setInterval(() => {
-            claimEngine.tick();
-        }, 2000); // Tick every 2 seconds
-
-        return () => clearInterval(interval);
-    }, [claimEngine]);
     const [pendingRetrievalIds, setPendingRetrievalIds] = useState<Set<string>>(
         new Set()
     );
@@ -258,27 +261,27 @@ export const Timeline = ({
     );
 
     // Debug: which claims are rejected by claimify (not in ranked)
-    useEffect(() => {
-        if (!dedupedInsights.length) return;
-        const kept = new Set(claimified.ranked.map((c) => c.id));
-        const rejected = dedupedInsights.filter((c) => !kept.has(c.id));
-        if (rejected.length > 0) {
-            console.log("claimify.stats", {
-                total: dedupedInsights.length,
-                ranked: claimified.ranked.length,
-                toDispatch: claimified.toDispatch.length,
-            });
-            console.log(
-                "claimify.rejected",
-                rejected.map((r) => ({
-                    id: r.id,
-                    subject: r.subjectNoun,
-                    seeds: r.searchSeeds,
-                    quote: (r.quote || "").slice(0, 200),
-                }))
-            );
-        }
-    }, [dedupedInsights, claimified]);
+    // useEffect(() => {
+    //     if (!dedupedInsights.length) return;
+    //     const kept = new Set(claimified.ranked.map((c) => c.id));
+    //     const rejected = dedupedInsights.filter((c) => !kept.has(c.id));
+    //     if (rejected.length > 0) {
+    //         console.log("claimify.stats", {
+    //             total: dedupedInsights.length,
+    //             ranked: claimified.ranked.length,
+    //             toDispatch: claimified.toDispatch.length,
+    //         });
+    //         console.log(
+    //             "claimify.rejected",
+    //             rejected.map((r) => ({
+    //                 id: r.id,
+    //                 subject: r.subjectNoun,
+    //                 seeds: r.searchSeeds,
+    //                 quote: (r.quote || "").slice(0, 200),
+    //             }))
+    //         );
+    //     }
+    // }, [dedupedInsights, claimified]);
 
     // Update transcript index from final pieces for ClaimEngine
     useEffect(() => {
@@ -310,7 +313,10 @@ export const Timeline = ({
 
     // gating moved to fact-utils
     useEffect(() => {
-        if (!structuredOutput) return;
+        if (!structuredOutput) {
+            console.log(`[Timeline] No structured output to process`);
+            return;
+        }
 
         const pick = (
             obj: unknown
@@ -343,7 +349,6 @@ export const Timeline = ({
                 };
             }
 
-            console.log("speakerLabels", speakerLabels);
             const txt = rec.text as unknown;
             if (typeof txt === "string") {
                 try {
@@ -455,21 +460,21 @@ export const Timeline = ({
                 revisionNote: null,
             }));
 
-            if (shouldLog) {
-                console.log(
-                    "📥 [ClaimEngine] Raw incoming items:",
-                    claimItems.length,
-                    claimItems.map((item) => ({
-                        id: item.id,
-                        quote:
-                            item.quote.slice(0, 80) +
-                            (item.quote.length > 80 ? "..." : ""),
-                        subjectSpan: item.subjectSpan,
-                        speakerTag: item.speakerTag,
-                        version: item.version,
-                    }))
-                );
-            }
+            // if (shouldLog) {
+            //     console.log(
+            //         "📥 [ClaimEngine] Raw incoming items:",
+            //         claimItems.length,
+            //         claimItems.map((item) => ({
+            //             id: item.id,
+            //             quote:
+            //                 item.quote.slice(0, 80) +
+            //                 (item.quote.length > 80 ? "..." : ""),
+            //             subjectSpan: item.subjectSpan,
+            //             speakerTag: item.speakerTag,
+            //             version: item.version,
+            //         }))
+            //     );
+            // }
 
             const payload: LlmPayload = {
                 rev: currentRev,
@@ -477,14 +482,14 @@ export const Timeline = ({
                 items: claimItems,
             };
 
-            if (shouldLog) {
-                console.log(
-                    "🏗️ [ClaimEngine] Processing payload - rev:",
-                    payload.rev,
-                    "speakerLabels:",
-                    payload.speakerLabels?.length || 0
-                );
-            }
+            // if (shouldLog) {
+            //     console.log(
+            //         "🏗️ [ClaimEngine] Processing payload - rev:",
+            //         payload.rev,
+            //         "speakerLabels:",
+            //         payload.speakerLabels?.length || 0
+            //     );
+            // }
 
             // Process through ClaimEngine
             const normalizedClaims = claimEngine.upsertFromLlm(
@@ -493,23 +498,23 @@ export const Timeline = ({
                 memories
             );
 
-            if (shouldLog) {
-                console.log(
-                    "⚡ [ClaimEngine] Normalized claims:",
-                    normalizedClaims.length,
-                    normalizedClaims.map((claim) => ({
-                        id: claim.id,
-                        claimKey: claim.claimKey,
-                        status: claim.status,
-                        subjectCanonical: claim.subjectCanonical,
-                        relationLemma: claim.relationLemma,
-                        confidence: claim.confidence,
-                        quote:
-                            claim.quote.slice(0, 60) +
-                            (claim.quote.length > 60 ? "..." : ""),
-                    }))
-                );
-            }
+            // if (shouldLog) {
+            //     console.log(
+            //         "⚡ [ClaimEngine] Normalized claims:",
+            //         normalizedClaims.length,
+            //         normalizedClaims.map((claim) => ({
+            //             id: claim.id,
+            //             claimKey: claim.claimKey,
+            //             status: claim.status,
+            //             subjectCanonical: claim.subjectCanonical,
+            //             relationLemma: claim.relationLemma,
+            //             confidence: claim.confidence,
+            //             quote:
+            //                 claim.quote.slice(0, 60) +
+            //                 (claim.quote.length > 60 ? "..." : ""),
+            //         }))
+            //     );
+            // }
 
             // Convert back to InsightItem format for display compatibility
             const convertedInsights = normalizedClaims.map((claim) => ({
@@ -532,20 +537,20 @@ export const Timeline = ({
                 claimEngineData: claim,
             }));
 
-            if (shouldLog) {
-                console.log(
-                    "🔄 [ClaimEngine] Converted to insights:",
-                    convertedInsights.length,
-                    convertedInsights.map((insight) => ({
-                        id: insight.id,
-                        status: insight.claimEngineData?.status,
-                        confidence: insight.claimEngineData?.confidence,
-                        verifiable: insight.claimEngineData
-                            ? isVerifiableNow(insight.claimEngineData)
-                            : false,
-                    }))
-                );
-            }
+            // if (shouldLog) {
+            //     console.log(
+            //         "🔄 [ClaimEngine] Converted to insights:",
+            //         convertedInsights.length,
+            //         convertedInsights.map((insight) => ({
+            //             id: insight.id,
+            //             status: insight.claimEngineData?.status,
+            //             confidence: insight.claimEngineData?.confidence,
+            //             verifiable: insight.claimEngineData
+            //                 ? isVerifiableNow(insight.claimEngineData)
+            //                 : false,
+            //         }))
+            //     );
+            // }
 
             setInsights((prev) => {
                 // Merge with existing insights
@@ -574,29 +579,29 @@ export const Timeline = ({
             });
 
             // Run ClaimEngine tick to process any ready claims
-            if (shouldLog) {
-                console.log(
-                    "⏰ [ClaimEngine] Running tick to process ready claims..."
-                );
-            }
+            // if (shouldLog) {
+            //     console.log(
+            //         "⏰ [ClaimEngine] Running tick to process ready claims..."
+            //     );
+            // }
             claimEngine.tick();
 
             // Log final state from ClaimEngine
             if (shouldLog) {
-                const engineState = claimEngine.getDisplayableClaims();
-                console.log(
-                    "📊 [ClaimEngine] Final displayable claims:",
-                    engineState.length,
-                    engineState.map((claim) => ({
-                        id: claim.id,
-                        status: claim.status,
-                        confidence: claim.confidence,
-                        verifiable: isVerifiableNow(claim),
-                        claimKey: claim.claimKey,
-                        subjectCanonical: claim.subjectCanonical,
-                        relationLemma: claim.relationLemma,
-                    }))
-                );
+                // const engineState = claimEngine.getDisplayableClaims();
+                // console.log(
+                //     "📊 [ClaimEngine] Final displayable claims:",
+                //     engineState.length,
+                //     engineState.map((claim) => ({
+                //         id: claim.id,
+                //         status: claim.status,
+                //         confidence: claim.confidence,
+                //         verifiable: isVerifiableNow(claim),
+                //         claimKey: claim.claimKey,
+                //         subjectCanonical: claim.subjectCanonical,
+                //         relationLemma: claim.relationLemma,
+                //     }))
+                // );
 
                 // Mark this revision as logged and clean up old ones to prevent memory leaks
                 loggedRevisions.current.add(currentRev);
@@ -689,23 +694,25 @@ export const Timeline = ({
         const droppedAtDispatch = dispatchSet.filter(
             (x) => !toDispatchIds.has(x.id)
         );
-        if (droppedAtDispatch.length > 0) {
-            console.log(
-                "dispatch.rejected",
-                droppedAtDispatch.map((r) => ({
-                    id: r.id,
-                    reason:
-                        factStates[r.id]?.state === "final"
-                            ? "already_final"
-                            : pendingRetrievalIds.has(r.id)
-                              ? "in_flight"
-                              : "gate",
-                    subject: r.subjectNoun,
-                    seeds: r.searchSeeds,
-                    quote: (r.quote || "").slice(0, 200),
-                }))
-            );
-        }
+        // if (droppedAtDispatch.length > 0) {
+        //     console.log(
+        //         "dispatch.rejected",
+        //         droppedAtDispatch.map((r) => ({
+        //             id: r.id,
+        //             reason:
+        //                 factStates[r.id]?.state === "final" ||
+        //                 insights.find((i) => i.id === r.id)?.factCheckState ===
+        //                     "final"
+        //                     ? "already_final"
+        //                     : pendingRetrievalIds.has(r.id)
+        //                       ? "in_flight"
+        //                       : "gate",
+        //             subject: r.subjectNoun,
+        //             seeds: r.searchSeeds,
+        //             quote: (r.quote || "").slice(0, 200),
+        //         }))
+        //     );
+        // }
 
         if (toDispatch.length === 0) return;
         if (!ENABLE_RETRIEVAL) return; // skip network calls while testing
@@ -741,6 +748,11 @@ export const Timeline = ({
         });
 
         dispatchFactChecks(requests, askPerplexity as AskFn, (u) => {
+            // console.log(
+            //     `[Timeline] Received fact-check update for ${u.id}:`,
+            //     u
+            // );
+
             setFactStates((prev) => {
                 const next = { ...prev };
                 next[u.id] = {
@@ -750,8 +762,21 @@ export const Timeline = ({
                     rationale: u.rationale ?? next[u.id]?.rationale,
                     citations: u.citations ?? next[u.id]?.citations,
                 };
+                // console.log(
+                //     `[Timeline] Updated factStates for ${u.id}:`,
+                //     next[u.id]
+                // );
                 return next;
             });
+
+            // Clear pending when terminal
+            if (u.state === "final" || u.state === "error") {
+                setPendingRetrievalIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(u.id);
+                    return next;
+                });
+            }
 
             // Reflect into insights for UI
             setInsights((prev) =>
@@ -1075,26 +1100,26 @@ export const Timeline = ({
                                 const matched = preCandidates.filter((it) =>
                                     rankedIds.has(it.id)
                                 );
-                                if (
-                                    preCandidates.length > 0 &&
-                                    matched.length < preCandidates.length
-                                ) {
-                                    const dropped = preCandidates.filter(
-                                        (x) => !rankedIds.has(x.id)
-                                    );
-                                    console.log(
-                                        "render.rejected_by_rank",
-                                        dropped.map((r) => ({
-                                            id: r.id,
-                                            subject: r.subjectNoun,
-                                            seeds: r.searchSeeds,
-                                            quote: (r.quote || "").slice(
-                                                0,
-                                                200
-                                            ),
-                                        }))
-                                    );
-                                }
+                                // if (
+                                //     preCandidates.length > 0 &&
+                                //     matched.length < preCandidates.length
+                                // ) {
+                                //     const dropped = preCandidates.filter(
+                                //         (x) => !rankedIds.has(x.id)
+                                //     );
+                                //     console.log(
+                                //         "render.rejected_by_rank",
+                                //         dropped.map((r) => ({
+                                //             id: r.id,
+                                //             subject: r.subjectNoun,
+                                //             seeds: r.searchSeeds,
+                                //             quote: (r.quote || "").slice(
+                                //                 0,
+                                //                 200
+                                //             ),
+                                //         }))
+                                //     );
+                                // }
                                 if (matched.length === 0) {
                                     return (
                                         <div
@@ -1194,115 +1219,168 @@ export const Timeline = ({
 
                                     // Fact card rendering logs disabled to prevent spam on every render
 
-                                    factCardsToRender.forEach((it) => {
-                                        parts.push(
-                                            <div
-                                                key={`fc-${i}-${it.id}`}
-                                                className="my-4"
-                                                aria-live="polite"
-                                            >
-                                                <FactCheckCard
-                                                    key={`fc-${i}-${it.id}:${it.version ?? 0}`}
-                                                    id={String(it.id)}
-                                                    state={
-                                                        // Use ClaimEngine status if available
-                                                        it.claimEngineData
-                                                            ?.status === "READY"
-                                                            ? "analyzing"
-                                                            : it.claimEngineData
-                                                                    ?.status ===
-                                                                "QUEUED"
-                                                              ? "searching"
-                                                              : it
-                                                                      .claimEngineData
-                                                                      ?.status ===
-                                                                  "CHECKING"
-                                                                ? "judging"
+                                    parts.push(
+                                        <AnimatePresence initial={false}>
+                                            {factCardsToRender.map((it) => (
+                                                <motion.div
+                                                    key={`fc-${i}-${it.id}`}
+                                                    className="my-4"
+                                                    aria-live="polite"
+                                                    initial={{
+                                                        opacity: 0,
+                                                        y: 8,
+                                                        scale: 0.98,
+                                                    }}
+                                                    animate={{
+                                                        opacity: 1,
+                                                        y: 0,
+                                                        scale: 1,
+                                                    }}
+                                                    exit={{
+                                                        opacity: 0,
+                                                        y: -6,
+                                                        scale: 0.98,
+                                                    }}
+                                                    transition={{
+                                                        duration: 0.28,
+                                                        ease: [
+                                                            0.22, 0.6, 0.36, 1,
+                                                        ],
+                                                    }}
+                                                    layout
+                                                >
+                                                    <FactCheckCard
+                                                        key={`fc-${i}-${it.id}:${it.version ?? 0}`}
+                                                        id={String(it.id)}
+                                                        state={
+                                                            // Prefer live retrieval factStates first
+                                                            factStates[it.id]
+                                                                ?.state ===
+                                                            "final"
+                                                                ? "final"
+                                                                : factStates[
+                                                                        it.id
+                                                                    ]?.state ===
+                                                                    "judging"
+                                                                  ? "judging"
+                                                                  : factStates[
+                                                                          it.id
+                                                                      ]
+                                                                          ?.state ===
+                                                                      "searching"
+                                                                    ? "searching"
+                                                                    : // Then fall back to ClaimEngine status if available
+                                                                      it
+                                                                            .claimEngineData
+                                                                            ?.status ===
+                                                                        "READY"
+                                                                      ? "analyzing"
+                                                                      : it
+                                                                              .claimEngineData
+                                                                              ?.status ===
+                                                                          "QUEUED"
+                                                                        ? "searching"
+                                                                        : it
+                                                                                .claimEngineData
+                                                                                ?.status ===
+                                                                            "CHECKING"
+                                                                          ? "judging"
+                                                                          : it
+                                                                                  .claimEngineData
+                                                                                  ?.status ===
+                                                                              "VERIFIED"
+                                                                            ? "final"
+                                                                            : it
+                                                                                    .claimEngineData
+                                                                                    ?.status ===
+                                                                                "REFUTED"
+                                                                              ? "final"
+                                                                              : it
+                                                                                      .claimEngineData
+                                                                                      ?.status ===
+                                                                                  "UNCERTAIN"
+                                                                                ? "final"
+                                                                                : (it.factCheckState as any) ||
+                                                                                  "analyzing"
+                                                        }
+                                                        claim={it.quote}
+                                                        subject={
+                                                            // Prefer ClaimEngine canonical subject
+                                                            it.claimEngineData
+                                                                ?.subjectCanonical ||
+                                                            it.claimEngineData
+                                                                ?.subjectSurface ||
+                                                            it.subjectNoun ||
+                                                            undefined
+                                                        }
+                                                        seeds={
+                                                            (it.searchSeeds as
+                                                                | string[]
+                                                                | null) ||
+                                                            undefined
+                                                        }
+                                                        context={
+                                                            it.context ||
+                                                            undefined
+                                                        }
+                                                        verdict={
+                                                            // Prefer retrieval verdict, then map ClaimEngine status
+                                                            (it.factCheckVerdict as any) ??
+                                                            (it.claimEngineData
+                                                                ?.status ===
+                                                            "VERIFIED"
+                                                                ? "supported"
                                                                 : it
                                                                         .claimEngineData
                                                                         ?.status ===
-                                                                    "VERIFIED"
-                                                                  ? "final"
+                                                                    "REFUTED"
+                                                                  ? "disputed"
                                                                   : it
                                                                           .claimEngineData
                                                                           ?.status ===
-                                                                      "REFUTED"
-                                                                    ? "final"
-                                                                    : it
-                                                                            .claimEngineData
-                                                                            ?.status ===
-                                                                        "UNCERTAIN"
-                                                                      ? "final"
-                                                                      : (it.factCheckState as any) ||
-                                                                        "analyzing"
-                                                    }
-                                                    claim={it.quote}
-                                                    subject={
-                                                        // Prefer ClaimEngine canonical subject
-                                                        it.claimEngineData
-                                                            ?.subjectCanonical ||
-                                                        it.claimEngineData
-                                                            ?.subjectSurface ||
-                                                        it.subjectNoun ||
-                                                        undefined
-                                                    }
-                                                    seeds={
-                                                        (it.searchSeeds as
-                                                            | string[]
-                                                            | null) || undefined
-                                                    }
-                                                    context={
-                                                        it.context || undefined
-                                                    }
-                                                    verdict={
-                                                        // Map ClaimEngine status to verdict
-                                                        it.claimEngineData
-                                                            ?.status ===
-                                                        "VERIFIED"
-                                                            ? "supported"
-                                                            : it.claimEngineData
-                                                                    ?.status ===
-                                                                "REFUTED"
-                                                              ? "disputed"
-                                                              : it
-                                                                      .claimEngineData
-                                                                      ?.status ===
-                                                                  "UNCERTAIN"
-                                                                ? "uncertain"
-                                                                : (it.factCheckVerdict as any)
-                                                    }
-                                                    confidence={
-                                                        // Use ClaimEngine confidence if available
-                                                        it.claimEngineData
-                                                            ?.confidence ??
-                                                        it.factCheckConfidence ??
-                                                        undefined
-                                                    }
-                                                    rationale={
-                                                        it.factCheckRationale ??
-                                                        undefined
-                                                    }
-                                                    citations={(
-                                                        factStates[it.id]
-                                                            ?.citations || []
-                                                    ).map((c) => ({
-                                                        url: c.url,
-                                                        title: c.title,
-                                                        published_at:
-                                                            c.published_at ??
-                                                            null,
-                                                        quote:
-                                                            (c as any).quote ||
-                                                            "",
-                                                    }))}
-                                                    nowISO={undefined}
-                                                    claimEngineData={
-                                                        it.claimEngineData
-                                                    }
-                                                />
-                                            </div>
-                                        );
-                                    });
+                                                                      "UNCERTAIN"
+                                                                    ? "uncertain"
+                                                                    : undefined)
+                                                        }
+                                                        confidence={
+                                                            // Prefer retrieval, then ClaimEngine confidence
+                                                            it.factCheckConfidence ??
+                                                            factStates[it.id]
+                                                                ?.confidence ??
+                                                            it.claimEngineData
+                                                                ?.confidence ??
+                                                            undefined
+                                                        }
+                                                        rationale={
+                                                            it.factCheckRationale ??
+                                                            factStates[it.id]
+                                                                ?.rationale ??
+                                                            undefined
+                                                        }
+                                                        citations={(
+                                                            factStates[it.id]
+                                                                ?.citations ||
+                                                            []
+                                                        ).map((c) => ({
+                                                            url: c.url,
+                                                            title: c.title,
+                                                            published_at:
+                                                                c.published_at ??
+                                                                null,
+                                                            quote:
+                                                                (c as any)
+                                                                    .quote ||
+                                                                "",
+                                                        }))}
+                                                        nowISO={undefined}
+                                                        claimEngineData={
+                                                            it.claimEngineData
+                                                        }
+                                                    />
+                                                </motion.div>
+                                            ))}
+                                        </AnimatePresence>
+                                    );
                                     cursor = a.end;
                                 });
                                 if (cursor < t.text.length) {

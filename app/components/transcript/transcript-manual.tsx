@@ -96,7 +96,7 @@ export const TranscriptManual = ({ apiUrl }: Props) => {
 
     useEffect(() => {
         if (shouldLogNextStructured && structuredOutput) {
-            console.log("[manual] structuredOutput", structuredOutput);
+            // console.log("[manual] structuredOutput", structuredOutput);
             setShouldLogNextStructured(false);
         }
     }, [structuredOutput, shouldLogNextStructured]);

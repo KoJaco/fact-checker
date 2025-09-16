@@ -17,7 +17,10 @@ export default function MktIndex() {
             <div className="py-24">
                 {!apiUrl && <div>No API URL</div>}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-foreground">
-                    <Link to="/debate" className="flex h-full">
+                    <Link
+                        to="/debate"
+                        className="flex h-full pointer-events-none opacity-50"
+                    >
                         <div className="border rounded-xl p-5 hover:bg-card/75 transition">
                             <div className="flex items-center mb-2 gap-2 justify-between">
                                 <h2 className="font-semibold">Debate</h2>
@@ -47,7 +50,10 @@ export default function MktIndex() {
                             </p>
                         </div>
                     </Link>
-                    <Link to="/data-driven" className="flex h-full">
+                    <Link
+                        to="/data-driven"
+                        className="flex h-full pointer-events-none opacity-50"
+                    >
                         <div className="border rounded-xl p-5 hover:bg-muted/50 transition">
                             <div className="flex items-center gap-2 mb-2 justify-between">
                                 <h2 className="font-semibold">Explainers</h2>

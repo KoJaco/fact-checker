@@ -1,5 +1,50 @@
 import type { NormalizedClaim } from "./types";
 
+// Heuristic: detect numeric evidence (e.g., percentages and number words) in the quote text
+function quoteContainsNumericEvidence(text?: string): boolean {
+    if (!text) return false;
+    const t = text.toLowerCase();
+    // numeric digits and percentages
+    if (/%|\b\d{1,3}\s*%\b/.test(t)) return true;
+    // common number words and percentage phrases
+    const numberWords = [
+        "zero",
+        "one",
+        "two",
+        "three",
+        "four",
+        "five",
+        "six",
+        "seven",
+        "eight",
+        "nine",
+        "ten",
+        "eleven",
+        "twelve",
+        "thirteen",
+        "fourteen",
+        "fifteen",
+        "sixteen",
+        "seventeen",
+        "eighteen",
+        "nineteen",
+        "twenty",
+        "thirty",
+        "forty",
+        "fifty",
+        "sixty",
+        "seventy",
+        "eighty",
+        "ninety",
+        "hundred",
+        "thousand",
+    ];
+    const percentagePhrases = ["percent", "percentage"]; // handles "ninety four percent"
+    const hasNumberWord = numberWords.some((w) => t.includes(` ${w} `));
+    const hasPercentWord = percentagePhrases.some((w) => t.includes(` ${w}`));
+    return hasNumberWord && hasPercentWord;
+}
+
 /**
  * Score the verifiability of a normalized claim (0..1 scale)
  */
@@ -18,6 +63,11 @@ export function scoreVerifiability(claim: NormalizedClaim): number {
 
     // +0.20 if we have quantitative data, time context, or object
     if (claim.quantityText || claim.timeNormalized || claim.objectCanonical) {
+        score += 0.2;
+    }
+
+    // +0.20 if quote contains numeric evidence like percentages, even if not parsed
+    if (quoteContainsNumericEvidence(claim.quote)) {
         score += 0.2;
     }
 
@@ -49,7 +99,15 @@ export function scoreVerifiability(claim: NormalizedClaim): number {
         claim.relationLemma &&
         genericRelations.includes(claim.relationLemma.toLowerCase())
     ) {
-        score -= 0.05;
+        // If we already have numeric/context evidence, don't penalize generic relation
+        const hasContextEvidence =
+            !!claim.quantityText ||
+            !!claim.timeNormalized ||
+            !!claim.objectCanonical ||
+            quoteContainsNumericEvidence(claim.quote);
+        if (!hasContextEvidence) {
+            score -= 0.05;
+        }
     }
 
     // Bonus for specific types of verifiable content
@@ -73,7 +131,7 @@ export function scoreVerifiability(claim: NormalizedClaim): number {
  */
 export function isVerifiableNow(
     claim: NormalizedClaim,
-    minScore: number = 0.7
+    minScore: number = 0.6
 ): boolean {
     const score = scoreVerifiability(claim);
 
@@ -135,6 +193,13 @@ export function explainVerifiabilityScore(claim: NormalizedClaim): {
         breakdown.push("0.00 - missing context data");
     }
 
+    if (quoteContainsNumericEvidence(claim.quote)) {
+        score += 0.2;
+        breakdown.push(
+            "+0.20 for numeric evidence in quote (e.g., percentage)"
+        );
+    }
+
     if (claim.locationNormalized || claim.scope) {
         score += 0.1;
         breakdown.push("+0.10 for location/scope");
@@ -162,8 +227,15 @@ export function explainVerifiabilityScore(claim: NormalizedClaim): {
         claim.relationLemma &&
         genericRelations.includes(claim.relationLemma.toLowerCase())
     ) {
-        score -= 0.05;
-        breakdown.push("-0.05 for generic relation");
+        const hasContextEvidence =
+            !!claim.quantityText ||
+            !!claim.timeNormalized ||
+            !!claim.objectCanonical ||
+            quoteContainsNumericEvidence(claim.quote);
+        if (!hasContextEvidence) {
+            score -= 0.05;
+            breakdown.push("-0.05 for generic relation");
+        }
     }
 
     if (claim.attributionSource && claim.attributionSource.trim().length > 0) {

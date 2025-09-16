@@ -80,7 +80,7 @@ export const TranscriptTight = ({ apiUrl }: Props) => {
         setIsRecording(!isRecording);
     };
 
-    console.log("structuredOutput", structuredOutput);
+    // console.log("structuredOutput", structuredOutput);
 
     // Manage timer for transcript duration and event timestamps
     useEffect(() => {
